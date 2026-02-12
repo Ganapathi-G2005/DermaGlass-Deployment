@@ -1,9 +1,6 @@
 # DermaDetect India 🇮🇳
 > *AI-Powered Dermatology Assistant for Indian Skin Tones*
 
-<!-- ![DermaDetect Banner](https://via.placeholder.com/1200x400?text=DermaDetect+India+Start+Screen) -->
-> *Replace this with a screenshot of your beautiful landing page!*
-
 **DermaDetect India** is a full-stack AI healthcare application designed to provide preliminary skin condition analysis and localized medical advice. Unlike generic classifiers, it uses an **Agentic Workflow** (`LangGraph` + `Gemini`) to act as a personalized dermatologist assistant, offering advice tailored to Indian contexts (e.g., specific home remedies, available generic medicines).
 
 ## 🌟 Key Features
