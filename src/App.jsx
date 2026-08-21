@@ -19,11 +19,28 @@ function App() {
   const [error, setError] = useState(null);
   const [history, setHistory] = useState([]);
 
+  const prepareImageForUpload = (sourceFile) => new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => {
+      const maxDimension = 1024;
+      const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(image.width * scale);
+      canvas.height = Math.round(image.height * scale);
+      canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => {
+        resolve(blob ? new File([blob], sourceFile.name, { type: 'image/jpeg' }) : sourceFile);
+      }, 'image/jpeg', 0.82);
+    };
+    image.onerror = () => resolve(sourceFile);
+    image.src = URL.createObjectURL(sourceFile);
+  });
+
   // Loading / scanning experience
   const loadingSteps = [
     'Analyzing texture...',
     'Checking pigmentation...',
-    'Consulting AI dermatologist...'
+    'Preparing your quick assessment...'
   ];
   const [loadingStepIndex, setLoadingStepIndex] = useState(0);
 
@@ -89,19 +106,16 @@ function App() {
     setResult(null);
 
     const formData = new FormData();
-    formData.append('file', fileToUpload);
+    const uploadFile = await prepareImageForUpload(fileToUpload);
+    formData.append('file', uploadFile);
 
     try {
-      // Ensure a minimum "trust-building" scanning time
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      const request = axios.post(`${API_URL}/predict`, formData, {
+      const response = await axios.post(`${API_URL}/predict`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       });
-
-      const delay = new Promise(resolve => setTimeout(resolve, 2000));
-      const response = await Promise.all([request, delay]).then(([res]) => res);
 
       setResult(response.data);
       setHistory(prev => [
@@ -109,7 +123,9 @@ function App() {
           id: Date.now(),
           disease: response.data.disease,
           confidence: response.data.confidence,
-          advice: response.data.advice,
+          summary: response.data.summary,
+          advice: response.data.advice || null,
+          session_id: response.data.session_id,
           createdAt: new Date().toISOString(),
           preview: URL.createObjectURL(fileToUpload),
         },
@@ -175,7 +191,9 @@ function App() {
                 setResult({
                   disease: item.disease,
                   confidence: item.confidence,
-                  advice: item.advice || 'Previous AI advice not stored. Run a new scan for fresh guidance.',
+                  summary: item.summary || item.advice || 'Previous quick assessment not stored. Run a new scan for fresh guidance.',
+                  advice: item.advice || null,
+                  session_id: item.session_id || crypto.randomUUID(),
                 });
                 setImagePreview(item.preview || imagePreview);
                 setView('RESULT');
@@ -193,7 +211,9 @@ function App() {
                 setResult({
                   disease: item.disease,
                   confidence: item.confidence,
-                  advice: item.advice || 'Previous AI advice not stored. Run a new scan for fresh guidance.',
+                  summary: item.summary || item.advice || 'Previous quick assessment not stored. Run a new scan for fresh guidance.',
+                  advice: item.advice || null,
+                  session_id: item.session_id || crypto.randomUUID(),
                 });
                 setImagePreview(item.preview || imagePreview);
                 setView('RESULT');

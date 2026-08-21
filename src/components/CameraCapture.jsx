@@ -39,8 +39,10 @@ const CameraCapture = ({ onCapture, onCancel }) => {
     const handleCapture = () => {
         if (videoRef.current) {
             const canvas = document.createElement('canvas');
-            canvas.width = videoRef.current.videoWidth;
-            canvas.height = videoRef.current.videoHeight;
+            const maxDimension = 1024;
+            const scale = Math.min(1, maxDimension / Math.max(videoRef.current.videoWidth, videoRef.current.videoHeight));
+            canvas.width = Math.round(videoRef.current.videoWidth * scale);
+            canvas.height = Math.round(videoRef.current.videoHeight * scale);
             const ctx = canvas.getContext('2d');
             ctx.drawImage(videoRef.current, 0, 0);
 
@@ -50,7 +52,7 @@ const CameraCapture = ({ onCapture, onCancel }) => {
                     onCapture(file);
                     stopCamera();
                 }
-            }, 'image/jpeg', 0.95);
+            }, 'image/jpeg', 0.82);
         }
     };
 

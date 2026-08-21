@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import Markdown from 'react-markdown';
 import { Activity, AlertTriangle, Send, MessageCircle, ChevronLeft } from 'lucide-react';
@@ -9,11 +9,19 @@ const ResultCard = ({ result, imagePreview, onReset }) => {
     const [chatMessages, setChatMessages] = useState([]);
     const [chatInput, setChatInput] = useState('');
     const [isSending, setIsSending] = useState(false);
+    const [reportAdvice, setReportAdvice] = useState(result?.advice || null);
+    const [reportStatus, setReportStatus] = useState(result?.advice ? 'completed' : 'idle');
+    const reportPollingRef = useRef(null);
+
+    useEffect(() => () => {
+        if (reportPollingRef.current) clearTimeout(reportPollingRef.current);
+    }, []);
 
     if (!result) return null;
 
-    const { disease, confidence, advice } = result;
+    const { disease, confidence, summary, session_id: sessionId } = result;
     const isHighConfidence = confidence > 70;
+    const advice = reportAdvice || summary;
 
     // ... (handleSend matches existing)
     const handleSend = async (e) => {
@@ -32,6 +40,7 @@ const ResultCard = ({ result, imagePreview, onReset }) => {
                 disease,
                 confidence,
                 question: trimmed,
+                session_id: sessionId,
             });
             const replyText = response.data?.reply || 'Sorry, I could not generate a response right now.';
             setChatMessages((prev) => [
@@ -51,6 +60,36 @@ const ResultCard = ({ result, imagePreview, onReset }) => {
             ]);
         } finally {
             setIsSending(false);
+        }
+    };
+
+    const handleGenerateReport = async () => {
+        if (reportStatus === 'queued' || reportStatus === 'processing') return;
+        setReportStatus('queued');
+        try {
+            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+            const response = await axios.post(`${API_URL}/reports`, {
+                disease,
+                confidence,
+                session_id: sessionId,
+            });
+            const reportId = response.data?.report_id;
+            const poll = async () => {
+                const reportResponse = await axios.get(`${API_URL}/reports/${reportId}`);
+                const report = reportResponse.data;
+                setReportStatus(report.status);
+                if (report.status === 'completed') {
+                    setReportAdvice(report.advice);
+                } else if (report.status === 'failed') {
+                    throw new Error(report.error || 'Report generation failed');
+                } else {
+                    reportPollingRef.current = setTimeout(poll, 1000);
+                }
+            };
+            await poll();
+        } catch (err) {
+            console.error(err);
+            setReportStatus('failed');
         }
     };
 
@@ -138,6 +177,20 @@ const ResultCard = ({ result, imagePreview, onReset }) => {
                         <div className="bg-white/5 rounded-2xl p-5 border border-white/5 shadow-inner">
                             <Markdown components={MarkdownComponents}>{advice}</Markdown>
                         </div>
+                        {!reportAdvice && (
+                            <button
+                                type="button"
+                                onClick={handleGenerateReport}
+                                disabled={reportStatus === 'queued' || reportStatus === 'processing'}
+                                className="mt-3 w-full rounded-xl bg-sky-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:cursor-wait disabled:opacity-60"
+                            >
+                                {reportStatus === 'queued' || reportStatus === 'processing'
+                                    ? 'Generating full report...'
+                                    : reportStatus === 'failed'
+                                        ? 'Retry full report'
+                                        : 'Generate full report'}
+                            </button>
+                        )}
                     </section>
 
                     {/* Disclaimer */}
